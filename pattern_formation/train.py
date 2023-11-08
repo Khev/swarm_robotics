@@ -11,20 +11,19 @@ from utils import rk4, scatter_plot, rhs, initialize_theta, rhs_alphaij
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-def simulate(dt, T, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
+def simulate(dt, T, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups, mx, my, mtheta):
     L = 2
     x0, y0 = np.random.uniform(-L,L,n), np.random.uniform(-L,L,n)
     theta0 = initialize_theta(n, n_groups)
     z = np.concatenate((x0,y0,theta0))
     NT = int(T/dt)
-    args = (n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups)
+    args = (n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups, mx, my, mtheta)
     for t in range(NT):
         z = rk4(z, rhs_alphaij, dt, *args)
     return z
 
 def simulate_wrapper(args):
     return simulate(*args)
-
 
 def save_data(all_zs, all_params, args):
 
@@ -66,11 +65,14 @@ def main(args):
     ngroup_range = np.linspace(args.ngroup_min, args.ngroup_max, args.ngroup_num_par)
     ngroup_range = [int(n) for n in ngroup_range]
     ngroup_range = [2,3,4, args.n]
+    mx_range = np.linspace(args.mx_min, args.mx_max, args.mx_num_par)
+    my_range = np.linspace(args.my_min, args.my_max, args.my_num_par)
+    mtheta_range = np.linspace(args.mtheta_min, args.mtheta_max, args.mtheta_num_par)
 
-    # All combinations of parameters
+    # Now you can generate all combinations of parameters including the new ones
     all_params = list(itertools.product(
-        Jx_range, Jy_range, K_range, alpha_range, 
-        betax_range, betay_range, a_range, p_range, q_range, ngroup_range
+        Jx_range, Jy_range, K_range, alpha_range, betax_range, betay_range,
+        a_range, p_range, q_range, ngroup_range, mx_range, my_range, mtheta_range
     ))
 
     # Filter out cases where Jy < Jx, betay < betax, and p > q
@@ -119,45 +121,37 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run the swarmalator simulation.")
     parser.add_argument('--dt', type=float, default=0.25, help='Time step size')
-    parser.add_argument('--T', type=float, default=200, help='Total time for simulation')
-    parser.add_argument('--n', type=int, default=100, help='Number of swarmalators')
+    parser.add_argument('--T', type=float, default=100, help='Total time for simulation')
+    parser.add_argument('--n', type=int, default=50, help='Number of swarmalators')
 
-    num_par = 1
+    # Jx, Jy, K
+    min, max, num = -2.0, 2.0, 5
+    parser.add_argument('--Jx_min', type=float, default=min, help='Minimum value for Jx')
+    parser.add_argument('--Jx_max', type=float, default=max, help='Maximum value for Jx')
+    parser.add_argument('--Jx_num_par', type=int, default=num, help='Number of parameters for Jx')
+    parser.add_argument('--Jy_min', type=float, default=min, help='Minimum value for Jy')
+    parser.add_argument('--Jy_max', type=float, default=max, help='Maximum value for Jy')
+    parser.add_argument('--Jy_num_par', type=int, default=num, help='Number of parameters for Jy')
+    parser.add_argument('--K_min', type=float, default=0, help='Minimum value for K')
+    parser.add_argument('--K_max', type=float, default=0, help='Maximum value for K')
+    parser.add_argument('--K_num_par', type=int, default=1, help='Number of parameters for K')
 
-    # Jx
-    parser.add_argument('--Jx_min', type=float, default=-2.0, help='Minimum value for Jx')
-    parser.add_argument('--Jx_max', type=float, default=2.0, help='Maximum value for Jx')
-    parser.add_argument('--Jx_num_par', type=int, default=11, help='Number of parameters for Jx')
-
-    # Jy
-    parser.add_argument('--Jy_min', type=float, default=-2.0, help='Minimum value for Jy')
-    parser.add_argument('--Jy_max', type=float, default=2.0, help='Maximum value for Jy')
-    parser.add_argument('--Jy_num_par', type=int, default=11, help='Number of parameters for Jy')
-
-    # K
-    parser.add_argument('--K_min', type=float, default=-2.0, help='Minimum value for K')
-    parser.add_argument('--K_max', type=float, default=2.0, help='Maximum value for K')
-    parser.add_argument('--K_num_par', type=int, default=11, help='Number of parameters for K')
-
-    # alpha
-    parser.add_argument('--alpha_min', type=float, default=0, help='Minimum value for alpha')
-    parser.add_argument('--alpha_max', type=float, default=np.pi/2, help='Maximum value for alpha')
-    parser.add_argument('--alpha_num_par', type=int, default=5, help='Number of parameters for alpha')
-
-    # betax
-    parser.add_argument('--betax_min', type=float, default=0, help='Minimum value for betax')
-    parser.add_argument('--betax_max', type=float, default=np.pi/2, help='Maximum value for betax')
-    parser.add_argument('--betax_num_par', type=int, default=5, help='Number of parameters for betax')
-
-    # betay
-    parser.add_argument('--betay_min', type=float, default=0, help='Minimum value for betay')
-    parser.add_argument('--betay_max', type=float, default=np.pi/2, help='Maximum value for betay')
-    parser.add_argument('--betay_num_par', type=int, default=5, help='Number of parameters for betay')
+    # alpha, betax, betay
+    min, max, num = 0, np.pi/2.0, 5
+    parser.add_argument('--alpha_min', type=float, default=min, help='Minimum value for alpha')
+    parser.add_argument('--alpha_max', type=float, default=max, help='Maximum value for alpha')
+    parser.add_argument('--alpha_num_par', type=int, default=num, help='Number of parameters for alpha')
+    parser.add_argument('--betax_min', type=float, default=min, help='Minimum value for betax')
+    parser.add_argument('--betax_max', type=float, default=max, help='Maximum value for betax')
+    parser.add_argument('--betax_num_par', type=int, default=num, help='Number of parameters for betax')
+    parser.add_argument('--betay_min', type=float, default=min, help='Minimum value for betay')
+    parser.add_argument('--betay_max', type=float, default=max, help='Maximum value for betay')
+    parser.add_argument('--betay_num_par', type=int, default=num, help='Number of parameters for betay')
 
     # a
     parser.add_argument('--a_min', type=float, default=1, help='Minimum value for a')
     parser.add_argument('--a_max', type=float, default=1, help='Maximum value for a')
-    parser.add_argument('--a_num_par', type=int, default=num_par, help='Number of parameters for a')
+    parser.add_argument('--a_num_par', type=int, default=1, help='Number of parameters for a')
 
     # p
     parser.add_argument('--p_min', type=float, default=1, help='Minimum value for p')
@@ -174,7 +168,18 @@ if __name__ == "__main__":
     parser.add_argument('--ngroup_max', type=int, default=100, help='Maximum value for q')
     parser.add_argument('--ngroup_num_par', type=int, default=1, help='Number of parameters for q')
 
-    #
+    # mx, my, mtheta
+    min, max, num = 1,5,5
+    parser.add_argument('--mx_min', type=float, default=min, help='Minimum value for mx')
+    parser.add_argument('--mx_max', type=float, default=max, help='Maximum value for mx')
+    parser.add_argument('--mx_num_par', type=int, default=num, help='Number of parameters for mx')
+    parser.add_argument('--my_min', type=float, default=min, help='Minimum value for my')
+    parser.add_argument('--my_max', type=float, default=max, help='Maximum value for my')
+    parser.add_argument('--my_num_par', type=int, default=num, help='Number of parameters for my')
+    parser.add_argument('--mtheta_min', type=float, default=min, help='Minimum value for mtheta')
+    parser.add_argument('--mtheta_max', type=float, default=max, help='Maximum value for mtheta')
+    parser.add_argument('--mtheta_num_par', type=int, default=num, help='Number of parameters for mtheta')
+
     parser.add_argument('--parallel', action='store_true', help='Enable parallel processing')
     parser.add_argument('--processes', type=int, default=9, \
                         help='Number of processes to use for parallel processing')
