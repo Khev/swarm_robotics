@@ -6,25 +6,6 @@ from scipy.stats import circvar
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, pairwise_distances_argmin_min
 
-# def initialize_theta(n, n_groups):
-#     """
-#     Initialize theta values drawn from n_groups distinct values spaced equally on [0, 2*pi].
-    
-#     :param n: Number of swarmalators.
-#     :param n_groups: Number of distinct theta groups.
-#     :return: Initialized theta values.
-#     """
-#     if n % n_groups != 0:
-#         raise ValueError("n must be divisible by n_groups for equal distribution.")
-    
-#     # Create the distinct theta values spaced equally on [0, 2*pi]
-#     distinct_theta_values = np.linspace(0, 2 * np.pi, n_groups, endpoint=False)
-    
-#     # Assign each group an equal share of the distinct theta values
-#     theta0 = np.repeat(distinct_theta_values, n // n_groups)
-#     np.random.shuffle(theta0)  # Shuffle to ensure random distribution across the swarmalators
-
-#     return theta0
 
 def initialize_theta(n, n_groups):
     """
@@ -91,6 +72,7 @@ def rk4(z, F, dt, *args):
     return z_new
 
 def rhs(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
+    """ 2D swarmalator model """
 
     # Validate inputs
     if not isinstance(n, int) or n <= 0:
@@ -139,7 +121,10 @@ def rhs(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
     return np.concatenate((x_next, y_next, theta_next))
 
 
-def rhs_alphaij(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
+def rhs_alphaij(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups, mx, my, mtheta):
+    """ Here, alpha_{ij} = alpha if i>j, -alpha else 
+        and same for beta_x, beta_y
+    """
 
     # Validate inputs
     if not isinstance(n, int) or n <= 0:
@@ -151,7 +136,7 @@ def rhs_alphaij(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
     x, y, theta = z[:n], z[n:2*n], z[2*n:]
 
     # Create masks for the upper and lower triangles
-    upper_triangle_mask = np.tri(n, k=-1)  # 1s in the upper triangle, 0s in the diagonal and lower triangle
+    upper_triangle_mask = np.tri(n, k=-1)  # 1s in the upper triangle, 0s in the diagonal and
     lower_triangle_mask = upper_triangle_mask.T  # Transpose to get the lower triangle mask
 
     # Modify alpha, betax, betay depending on the indices i and j
@@ -180,14 +165,14 @@ def rhs_alphaij(z, n, Jx, Jy, K, alpha, betax, betay, a, p, q, n_groups):
     np.fill_diagonal(dist_q, 0)
 
     # Compute the alignment factors
-    alignment_factor_x = (1 + Jx * np.cos(theta_d - betax_matrix))
-    alignment_factor_y = (1 + Jy * np.cos(theta_d - betay_matrix))
+    alignment_factor_x = (1 + Jx * np.cos( mx * (theta_d - betax_matrix ) ) )
+    alignment_factor_y = (1 + Jy * np.cos( my * (theta_d - betay_matrix ) ) )
 
     # Compute the RHS of the equations
     with np.errstate(divide='ignore', invalid='ignore'):
         x_rhs = -xd * (alignment_factor_x / dist_p - a / dist_q)
         y_rhs = -yd * (alignment_factor_y / dist_p - a / dist_q)
-        theta_rhs = -K * np.sin(theta_d - alpha_matrix) / dist_p
+        theta_rhs = -K * np.sin( mtheta * (theta_d - alpha_matrix)) / dist_p
 
     # Set the diagonals to zero
     np.fill_diagonal(x_rhs, 0)
@@ -217,7 +202,7 @@ def scatter_plot(x, y, theta, L=2):
     ax.set_ylim([-L,L])
     
     norm = mcolors.Normalize(vmin=0, vmax=2*np.pi)
-    scatter = ax.scatter(x, y, c=np.mod(theta,2*np.pi), s=200, alpha=0.9, cmap='gist_rainbow', norm=norm)
+    scatter = ax.scatter(x, y, c=np.mod(theta,2*np.pi), alpha=0.6, cmap='gist_rainbow', norm=norm)
     cbar = plt.colorbar(scatter, ax=ax, orientation='vertical')
     cbar.set_label('theta', fontsize=16)  # Add label to colorbar
     plt.show()
@@ -299,7 +284,8 @@ def featurize(z):
     
     # Feature 3: Density (Estimate based on the number of points in a given area)
     # Here we use a simple estimation by taking the inverse of the average distance between points
-    avg_distance = np.mean([np.linalg.norm(p1-p2) for i, p1 in enumerate(positions[:-1]) for p2 in positions[i+1:]])
+    avg_distance = np.mean([np.linalg.norm(p1-p2) for i, p1 in enumerate(positions[:-1]) \
+                             for p2 in positions[i+1:]])
     density = 1 / avg_distance if avg_distance != 0 else 0
     
     # Feature 4: Radius of Gyration
